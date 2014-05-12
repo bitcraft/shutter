@@ -285,6 +285,15 @@ class Camera(object):
     def port_info(self, info):
         check(gp.gp_camera_set_port_info(self._ptr, info))
 
+    def clear_memory(self):
+        """ Delete all files in the camera's memory root.
+
+        Returns:
+            None
+        """
+        check(gp.gp_camera_folder_delete_all(self._ptr, '/', context))
+
+
     def capture_and_store_image(self, destpath=None):
         """ Capture an image and store it to the camera.
 
