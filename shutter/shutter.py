@@ -216,18 +216,6 @@ class Camera(object):
         check(gp.gp_camera_exit(self._ptr))
         check(gp.gp_camera_unref(self._ptr))
 
-    def _ref(self):
-        """
-        Increment the reference count of this camera.
-        """
-        check(gp.gp_camera_ref(self._ptr))
-
-    def _unref(self):
-        """
-        Decrements the reference count of this camera.
-        """
-        check(gp.gp_camera_unref(self._ptr))
-
     def close(self):
         """
         Close connection to camera.
@@ -285,16 +273,7 @@ class Camera(object):
     def port_info(self, info):
         check(gp.gp_camera_set_port_info(self._ptr, info))
 
-    def clear_memory(self):
-        """ Delete all files in the camera's memory root.
-
-        Returns:
-            None
-        """
-        check(gp.gp_camera_folder_delete_all(self._ptr, '/', context))
-
-
-    def capture_and_store_image(self, destpath=None):
+    def capture_image(self, destpath=None):
         """ Capture an image and store it to the camera.
 
         Kwargs:
@@ -317,34 +296,6 @@ class Camera(object):
 
         if destpath:
             self.download_file(path.folder, path.name, destpath)
-
-    def capture_image(self):
-        """ Capture an image and do not store it on the camera.
-
-        Kwargs:
-            path (str): If specified, file will be saved here
-
-        Returns:
-            CameraFile object
-
-        Raises:
-            ShutterError
-        """
-        path = CameraFilePathStruct()
-        ans = 0
-        f = gp.gp_camera_capture
-        for i in range(1 + retries):
-            ans = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
-            if ans == 0:
-                break
-
-        check(ans)
-
-        cfile = CameraFile
-        check(gp.gp_camera_file_get(self._ptr, path.folder, path.name,
-                                    GP_FILE_TYPE_NORMAL, cfile, context))
-
-        return cfile
 
     def capture_preview(self, destpath=None):
         """ Captures a preview image that won't be stored on the camera
@@ -381,7 +332,7 @@ class Camera(object):
         """
         cfile = CameraFile(self._ptr, srcfolder, srcfilename)
         cfile.save(destpath)
-        gp.gp_file_unref(cfile._ptr)
+        gp.gp_file_unref(cfile.pointer)
 
     def list_folders(self, path="/"):
         """
@@ -551,9 +502,6 @@ class CameraFile(object):
 
     def clean(self):
         check(gp.gp_file_clean(self._ptr))
-
-    def copy(self, source):
-        check(gp.gp_file_copy(self._ptr, source.pointer))
 
     @property
     def name(self):
