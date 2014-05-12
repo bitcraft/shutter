@@ -253,14 +253,8 @@ class Camera(object):
                 k, v = l.split(':')
             except ValueError:
                 continue
-            r[k] = v.strip()
+            r[k.strip()] = v.strip()
         return r
-
-    @property
-    def manual(self):
-        txt = CameraTextStruct()
-        check(gp.gp_camera_get_manual(self._ptr, PTR(txt), context))
-        return txt.text
 
     @property
     def about(self):
