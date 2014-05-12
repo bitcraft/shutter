@@ -191,8 +191,7 @@ class PortInfoStruct(ctypes.Structure):
 
 
 class Camera(object):
-    """
-    Object representing a camera attached to the system.
+    """ Object representing a camera attached to the system.
 
     The abilities of this type of camera are stored in a CameraAbility object.
     This is a thin ctypes wrapper about libgphoto2 Camera, with a few tweaks.
@@ -334,16 +333,14 @@ class Camera(object):
         return file
 
     def download_file(self, srcfolder, srcfilename, destpath):
-        """
-        Download a file from the camera's filesystem.
+        """ Download a file from the camera's filesystem.
         """
         cfile = CameraFile(self._ptr, srcfolder, srcfilename)
         cfile.save(destpath)
         check(gp.gp_file_unref(cfile.pointer))
 
     def list_folders(self, path="/"):
-        """
-        List folders in path.
+        """ List folders in path.
         """
         l = CameraList()
         f = gp.gp_camera_folder_list_folders
@@ -351,8 +348,7 @@ class Camera(object):
         return l.as_list()
 
     def list_files(self, path="/"):
-        """
-        List files in path.
+        """ List files in path.
         """
         l = CameraList()
         f = gp.gp_camera_folder_list_files
