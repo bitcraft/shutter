@@ -280,10 +280,15 @@ class Camera(object):
             path (str): If specified, file will be saved here
 
         Returns:
-            None
+            path (str): where the file was saved, either on camera or host
 
         Raises:
             ShutterError
+
+        If destpath is passed, then the image will be saved on the host.
+        If saved the the camera (destpath not passed), then the path returned
+        from this function will be relative to the camera's internal memory or
+        another storage device in the camera (SD card, etc.)
         """
         path = CameraFilePathStruct()
         ans = 0
@@ -296,6 +301,9 @@ class Camera(object):
 
         if destpath:
             self.download_file(path.folder, path.name, destpath)
+            return destpath
+        else:
+            return os.path.join(path.folder, path.name)
 
     def capture_preview(self, destpath=None):
         """ Captures a preview image that won't be stored on the camera
@@ -322,7 +330,6 @@ class Camera(object):
 
         if destpath:
             cfile.save(destpath)
-            cfile.free(destpath)
 
         return file
 
@@ -332,7 +339,6 @@ class Camera(object):
         """
         cfile = CameraFile(self._ptr, srcfolder, srcfilename)
         cfile.save(destpath)
-        gp.gp_file_unref(cfile.pointer)
 
     def list_folders(self, path="/"):
         """
@@ -394,13 +400,7 @@ class CameraList(object):
                 del xlist
 
     def __del__(self):
-        check(gp.gp_list_free(self._ptr))
-
-    def _ref(self):
-        check(gp.gp_list_ref(self._ptr))
-
-    def _unref(self):
-        check(gp.gp_list_ref(self._ptr))
+        check(gp.gp_list_unref(self._ptr))
 
     @property
     def pointer(self):
@@ -467,14 +467,11 @@ class CameraFile(object):
                           self._ptr, context), self)
 
     def __del__(self):
-        self.free(None)
+        check(gp.gp_file_unref(self._ptr))
 
     @property
     def pointer(self):
         return self._ptr
-
-    def free(self, filename):
-        check(gp.gp_file_free(self._ptr))
 
     def get_data(self):
         """
@@ -493,12 +490,6 @@ class CameraFile(object):
             filename = self.name
 
         check(gp.gp_file_save(self._ptr, filename))
-
-    def _ref(self):
-        check(gp.gp_file_ref(self._ptr))
-
-    def _unref(self):
-        check(gp.gp_file_unref(self._ptr))
 
     def clean(self):
         check(gp.gp_file_clean(self._ptr))
