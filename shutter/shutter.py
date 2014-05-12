@@ -285,7 +285,7 @@ class Camera(object):
     def port_info(self, info):
         check(gp.gp_camera_set_port_info(self._ptr, info))
 
-    def capture(self, destpath=None):
+    def capture_image(self, destpath=None):
         """ Capture an image and store it to the camera and path.
 
         Kwargs:
