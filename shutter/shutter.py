@@ -297,6 +297,7 @@ class Camera(object):
         Raises:
             ShutterError
         """
+        cfile = CameraFile
         path = CameraFilePathStruct()
         ans = 0
         f = gp.gp_camera_capture
@@ -304,12 +305,15 @@ class Camera(object):
             ans = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
             if ans == 0:
                 break
+
         check(ans)
+        check(gp.gp_camera_file_get(self._ptr, path.folder, path.name,
+                                    GP_FILE_TYPE_NORMAL, cfile, context))
 
         if destpath:
-            self.download_file(path.folder, path.name, destpath)
-        else:
-            return path.folder, path.name
+            cfile.save(destpath)
+
+        return cfile
 
     def capture_preview(self, destpath=None):
         """ Captures a preview image that won't be stored on the camera
