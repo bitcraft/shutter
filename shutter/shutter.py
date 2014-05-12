@@ -141,7 +141,7 @@ def check(result):
 
 def check_unref(result, camfile):
     if result != 0:
-        gp.gp_file_unref(camfile._cf)
+        gp.gp_file_unref(camfile.pointer)
         gp.gp_result_as_string.restype = ctypes.c_char_p
         message = gp.gp_result_as_string(result)
         raise ShutterError(result, message)
