@@ -253,8 +253,7 @@ class Camera(object):
                 k, v = l.split(':')
             except ValueError:
                 continue
-            r[k] = k
-            r[v] = v.strip()
+            r[k] = v.strip()
         return r
 
     @property
