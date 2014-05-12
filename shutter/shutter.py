@@ -28,7 +28,8 @@ import os
 import time
 import platform
 
-from .ptp import *
+#from .ptp import *
+
 
 # python 2/3 interop
 from six.moves import range
@@ -115,7 +116,7 @@ class ShutterError(Exception):
         return self.message + ' (' + str(self.result) + ')'
 
 
-def library_version(verbose=True):
+def gp_library_version(verbose=True):
     gp.gp_library_version.restype = ctypes.POINTER(ctypes.c_char_p)
     if not verbose:
         arr_text = gp.gp_library_version(GP_VERSION_SHORT)
@@ -196,7 +197,6 @@ class Camera(object):
     The abilities of this type of camera are stored in a CameraAbility object.
     This is a thin ctypes wrapper about libgphoto2 Camera, with a few tweaks.
     """
-
     def __init__(self):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_camera_new(PTR(self._ptr)))
@@ -240,9 +240,19 @@ class Camera(object):
 
     @property
     def summary(self):
+        """ Returns information about the camera.
+
+        Returns:
+            summary (dict): information about the camera
+        """
         txt = CameraTextStruct()
         check(gp.gp_camera_get_summary(self._ptr, PTR(txt), context))
-        return txt.text
+        r = dict()
+        for l in txt.text.split('\n'):
+            k, v = l.split(':')
+            r[k] = k
+            r[v] = v.strip()
+        return r
 
     @property
     def manual(self):
@@ -252,6 +262,11 @@ class Camera(object):
 
     @property
     def about(self):
+        """ Get information about the camera driver
+
+        Returns:
+            info (str): Typically, is author, acknowledgements, etc.
+        """
         txt = CameraTextStruct()
         check(gp.gp_camera_get_about(self._ptr, PTR(txt), context))
         return txt.text
@@ -259,12 +274,12 @@ class Camera(object):
     @property
     def abilities(self):
         ab = CameraAbilities()
-        check(gp.gp_camera_get_abilities(self._ptr, PTR(ab._ab)))
+        check(gp.gp_camera_get_abilities(self._ptr, PTR(ab.pointer)))
         return ab
 
     @abilities.setter
     def abilities(self, ab):
-        check(gp.gp_camera_set_abilities(self._ptr, ab._ab))
+        check(gp.gp_camera_set_abilities(self._ptr, ab.pointer))
 
     @property
     def port_info(self):
@@ -274,9 +289,17 @@ class Camera(object):
     def port_info(self, info):
         check(gp.gp_camera_set_port_info(self._ptr, info))
 
-    def capture_image(self, destpath=None):
-        """
-        Capture an image and store it to the camera and path.
+    def capture(self, destpath=None):
+        """ Capture an image and store it to the camera and path.
+
+        Kwargs:
+            path (str): If specified, file will be saved here
+
+        Returns:
+            CameraFile object
+
+        Raises:
+            ShutterError
         """
         path = CameraFilePathStruct()
         ans = 0
@@ -293,15 +316,21 @@ class Camera(object):
             return path.folder, path.name
 
     def capture_preview(self, destpath=None):
-        """
-        Captures a preview that won't be stored on the camera but returned
-        in supplied file.
+        """ Captures a preview image that won't be stored on the camera
 
-        The preview file will not have the full detail/resolution of the camera.
+        Kwargs:
+            path (str): If specified, file will be saved here
+
+        Returns:
+            CameraFile object
+
+        Raises:
+            ShutterError
+
+        The preview image format varies in different camera models.  Generally,
+        the image will not have the full detail/resolution of the camera.
         """
-        #path = CameraFilePathStruct()
         cfile = CameraFile()
-
         ans = 0
         f = gp.gp_camera_capture_preview
         for i in range(1 + retries):
@@ -312,28 +341,16 @@ class Camera(object):
         if destpath:
             cfile.save(destpath)
             cfile.free(destpath)
-        else:
-            return cfile
+
+        return file
 
     def download_file(self, srcfolder, srcfilename, destpath):
         """
-        Download a file from the camera.
+        Download a file from the camera's filesystem.
         """
         cfile = CameraFile(self._ptr, srcfolder, srcfilename)
         cfile.save(destpath)
         gp.gp_file_unref(cfile._ptr)
-
-    def trigger_capture(self):
-        """
-        Triggers capture of one image.
-        """
-        check(gp.gp_camera_trigger_capture(self._ptr, context))
-
-    def wait_for_event(self, timeout):
-        """
-        Wait for an event from the camera. (Not Implemented)
-        """
-        raise NotImplementedError
 
     def list_folders(self, path="/"):
         """
@@ -352,11 +369,6 @@ class Camera(object):
         f = gp.gp_camera_folder_list_files
         check(f(self._ptr, str(path), l.pointer, context))
         return l.as_list()
-
-    def ptp_canon_eos_requestdevicepropvalue(self, prop):
-        params = ctypes.c_void_p(self._ptr.value + 12)
-        gp.ptp_generic_no_data(params, PTP_OC_CANON_EOS_RequestDevicePropValue,
-                               1, prop)
 
 
 class CameraList(object):
@@ -461,6 +473,9 @@ class CameraList(object):
 
 
 class CameraFile(object):
+    """
+    Abstract data container for camera image files.
+    """
     def __init__(self, cam=None, srcfolder=None, srcfilename=None):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_file_new(PTR(self._ptr)))
@@ -497,10 +512,10 @@ class CameraFile(object):
 
         check(gp.gp_file_save(self._ptr, filename))
 
-    def ref(self):
+    def _ref(self):
         check(gp.gp_file_ref(self._ptr))
 
-    def unref(self):
+    def _unref(self):
         check(gp.gp_file_unref(self._ptr))
 
     def clean(self):
@@ -522,29 +537,34 @@ class CameraFile(object):
 
 class CameraAbilities(object):
     def __init__(self):
-        self._ab = CameraAbilitiesStruct()
+        self._ptr = CameraAbilitiesStruct()
 
     def __repr__(self):
         return "Model : %s\nStatus : %d\nPort : %d\nOperations : %d\nFile Operations : %d\nFolder Operations : %d\nUSB (vendor/product) : 0x%x/0x%x\nUSB class : 0x%x/0x%x/0x%x\nLibrary : %s\nId : %s\n" % (
-            self._ab.model, self._ab.status, self._ab.port, self._ab.operations,
-            self._ab.file_operations, self._ab.folder_operations,
-            self._ab.usb_vendor, self._ab.usb_product, self._ab.usb_class,
-            self._ab.usb_subclass, self._ab.usb_protocol, self._ab.library,
-            self._ab.id)
+            self._ptr.model, self._ptr.status, self._ptr.port,
+            self._ptr.operations,
+            self._ptr.file_operations, self._ptr.folder_operations,
+            self._ptr.usb_vendor, self._ptr.usb_product, self._ptr.usb_class,
+            self._ptr.usb_subclass, self._ptr.usb_protocol, self._ptr.library,
+            self._ptr.id)
 
-    model = property(lambda self: self._ab.model, None)
-    status = property(lambda self: self._ab.status, None)
-    port = property(lambda self: self._ab.port, None)
-    operations = property(lambda self: self._ab.operations, None)
-    file_operations = property(lambda self: self._ab.file_operations, None)
-    folder_operations = property(lambda self: self._ab.folder_operations, None)
-    usb_vendor = property(lambda self: self._ab.usb_vendor, None)
-    usb_product = property(lambda self: self._ab.usb_product, None)
-    usb_class = property(lambda self: self._ab.usb_class, None)
-    usb_subclass = property(lambda self: self._ab.usb_subclass, None)
-    usb_protocol = property(lambda self: self._ab.usb_protocol, None)
-    library = property(lambda self: self._ab.library, None)
-    id = property(lambda self: self._ab.id, None)
+    @property
+    def pointer(self):
+        return self._ptr
+
+    model = property(lambda self: self._ptr.model, None)
+    status = property(lambda self: self._ptr.status, None)
+    port = property(lambda self: self._ptr.port, None)
+    operations = property(lambda self: self._ptr.operations, None)
+    file_operations = property(lambda self: self._ptr.file_operations, None)
+    folder_operations = property(lambda self: self._ptr.folder_operations, None)
+    usb_vendor = property(lambda self: self._ptr.usb_vendor, None)
+    usb_product = property(lambda self: self._ptr.usb_product, None)
+    usb_class = property(lambda self: self._ptr.usb_class, None)
+    usb_subclass = property(lambda self: self._ptr.usb_subclass, None)
+    usb_protocol = property(lambda self: self._ptr.usb_protocol, None)
+    library = property(lambda self: self._ptr.library, None)
+    id = property(lambda self: self._ptr.id, None)
 
 
 class CameraAbilitiesList(object):
