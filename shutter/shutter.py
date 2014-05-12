@@ -285,8 +285,32 @@ class Camera(object):
     def port_info(self, info):
         check(gp.gp_camera_set_port_info(self._ptr, info))
 
-    def capture_image(self, destpath=None):
-        """ Capture an image and store it to the camera and path.
+    def capture_and_store_image(self, destpath=None):
+        """ Capture an image and store it to the camera.
+
+        Kwargs:
+            path (str): If specified, file will be saved here
+
+        Returns:
+            None
+
+        Raises:
+            ShutterError
+        """
+        path = CameraFilePathStruct()
+        ans = 0
+        f = gp.gp_camera_capture
+        for i in range(1 + retries):
+            ans = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
+            if ans == 0:
+                break
+        check(ans)
+
+        if destpath:
+            self.download_file(path.folder, path.name, destpath)
+
+    def capture_image(self):
+        """ Capture an image and do not store it on the camera.
 
         Kwargs:
             path (str): If specified, file will be saved here
@@ -297,7 +321,6 @@ class Camera(object):
         Raises:
             ShutterError
         """
-        cfile = CameraFile
         path = CameraFilePathStruct()
         ans = 0
         f = gp.gp_camera_capture
@@ -307,11 +330,10 @@ class Camera(object):
                 break
 
         check(ans)
+
+        cfile = CameraFile
         check(gp.gp_camera_file_get(self._ptr, path.folder, path.name,
                                     GP_FILE_TYPE_NORMAL, cfile, context))
-
-        if destpath:
-            cfile.save(destpath)
 
         return cfile
 
