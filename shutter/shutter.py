@@ -339,6 +339,7 @@ class Camera(object):
         """
         cfile = CameraFile(self._ptr, srcfolder, srcfilename)
         cfile.save(destpath)
+        check(gp.gp_file_unref(cfile.pointer))
 
     def list_folders(self, path="/"):
         """
@@ -482,17 +483,10 @@ class CameraFile(object):
         check(gp.gp_file_get_data_and_size(self._ptr, PTR(data), PTR(size)))
         return ctypes.string_at(data, int(size.value))
 
-    def open(self, filename):
-        check(gp.gp_file_open(PTR(self._ptr), filename))
-
     def save(self, filename=None):
         if filename is None:
             filename = self.name
-
         check(gp.gp_file_save(self._ptr, filename))
-
-    def clean(self):
-        check(gp.gp_file_clean(self._ptr))
 
     @property
     def name(self):
