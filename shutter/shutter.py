@@ -249,7 +249,10 @@ class Camera(object):
         check(gp.gp_camera_get_summary(self._ptr, PTR(txt), context))
         r = dict()
         for l in txt.text.split('\n'):
-            k, v = l.split(':')
+            try:
+                k, v = l.split(':')
+            except ValueError:
+                continue
             r[k] = k
             r[v] = v.strip()
         return r
