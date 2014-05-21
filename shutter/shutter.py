@@ -5,7 +5,7 @@
 # - a small code example by Mario Boikov,
 #   http://pysnippet.blogspot.com/2009/12/when-ctypes-comes-to-rescue.html
 # - libgphoto2 Python bindings by David PHAM-VAN <david@ab2r.com>
-# - ctypes_gphoto2.py by Hans Ulrich Niedermann <gp@n-dimensional.de>
+# - ctypes_gphoto2.py by Hval Ulrich Niedermann <gp@n-dimensional.de>
 
 modifications: leif theden, 2014
 - removed string module dependency
@@ -14,6 +14,7 @@ modifications: leif theden, 2014
 - cameraFile Sanity
 - modern property declarations
 - documentation
+- slight simplification
 - get_data method on CameraFile  --  very useful!
 
 incorporated patches from:
@@ -28,22 +29,11 @@ import os
 import time
 import platform
 
-#from .ptp import *
-
-
 # python 2/3 interop
 from six.moves import range
 
 
-# Some functions return errors which can be fixed by retrying.
-# For example, capture_preview on Canon 550D fails the first time, but
-# subsequent calls are OK.
-# Retries are performed on: camera.capture_preview, camera.capture_image and
-# camera.init()
-retries = 1
-
 # This is run if gp_camera_init returns -60 (Could not lock the device)
-# and retries >= 1.
 unmount_cmd = None
 if platform.system() == 'Darwin':
     unmount_cmd = 'killall PTPCamera'
@@ -84,6 +74,13 @@ GP_FILE_OPERATION_PREVIEW = 2
 GP_FILE_OPERATION_RAW = 3
 GP_FILE_OPERATION_AUDIO = 4
 GP_FILE_OPERATION_EXIF = 5
+
+#  ctypedef enum CameraEventType:
+GP_EVENT_UNKNOWN = 0
+GP_EVENT_TIMEOUT = 1
+GP_EVENT_FILE_ADDED = 2
+GP_EVENT_FOLDER_ADDED = 3
+GP_EVENT_CAPTURE_COMPLETE = 4
 
 #  ctypedef enum CameraFolderOperation:
 GP_FOLDER_OPERATION_NONE = 0
@@ -199,21 +196,14 @@ class Camera(object):
     def __init__(self):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_camera_new(PTR(self._ptr)))
-
-        ans = 0
-        for i in range(1 + retries):
-            ans = gp.gp_camera_init(self._ptr, context)
-            if ans == 0:
-                break
-            elif ans == -60:
-                os.system(unmount_cmd)
-                time.sleep(1)
-                raise ShutterError(ans, "cannot init camera")
-        check(ans)
+        val = gp.gp_camera_init(self._ptr, context)
+        if val == -60:
+            raise ShutterError(val, "cannot init camera")
+        check(val)
 
     def __del__(self):
-        check(gp.gp_camera_exit(self._ptr))
         check(gp.gp_camera_unref(self._ptr))
+        check(gp.gp_camera_exit(self._ptr))
 
     def close(self):
         """
@@ -290,13 +280,10 @@ class Camera(object):
         another storage device in the camera (SD card, etc.)
         """
         path = CameraFilePathStruct()
-        ans = 0
+        val = 0
         f = gp.gp_camera_capture
-        for i in range(1 + retries):
-            ans = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
-            if ans == 0:
-                break
-        check(ans)
+        val = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
+        check(val)
 
         if destpath:
             self.download_file(path.folder, path.name, destpath)
@@ -320,17 +307,13 @@ class Camera(object):
         the image will not have the full detail/resolution of the camera.
         """
         cfile = CameraFile()
-        ans = 0
         f = gp.gp_camera_capture_preview
-        for i in range(1 + retries):
-            ans = f(self._ptr, cfile.pointer, context)
-            if ans == 0:
-                break
+        check(f(self._ptr, cfile.pointer, context))
 
         if destpath:
             cfile.save(destpath)
 
-        return file
+        return cfile
 
     def download_file(self, srcfolder, srcfilename, destpath):
         """ Download a file from the camera's filesystem.
@@ -355,6 +338,12 @@ class Camera(object):
         check(f(self._ptr, str(path), l.pointer, context))
         return l.as_list()
 
+    def wait_for_event(self, timeout=1000):
+        data = ctypes.c_char_p()
+        t = ctypes.c_int()
+        f = gp.gp_camera_wait_for_event
+        val = check(f(self._ptr, timeout, PTR(t), PTR(data), context))
+        return val
 
 class CameraList(object):
     def __init__(self, autodetect=False):
@@ -388,6 +377,7 @@ class CameraList(object):
                 if len(good_list):
                     for model, path in good_list:
                         self.append(model, path)
+
                 elif len(bad_list) == 1:
                     model, path = bad_list[0]
                     self.append(model, path)
@@ -477,7 +467,8 @@ class CameraFile(object):
         data = ctypes.c_char_p()
         size = ctypes.c_ulong()
         check(gp.gp_file_get_data_and_size(self._ptr, PTR(data), PTR(size)))
-        return ctypes.string_at(data, int(size.value))
+        string = ctypes.string_at(data, int(size.value))
+        return string
 
     def save(self, filename=None):
         if filename is None:
