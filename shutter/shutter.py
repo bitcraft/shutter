@@ -202,8 +202,8 @@ class Camera(object):
         check(val)
 
     def __del__(self):
-        check(gp.gp_camera_unref(self._ptr))
         check(gp.gp_camera_exit(self._ptr))
+        check(gp.gp_camera_unref(self._ptr))
 
     def close(self):
         """
@@ -280,7 +280,6 @@ class Camera(object):
         another storage device in the camera (SD card, etc.)
         """
         path = CameraFilePathStruct()
-        val = 0
         f = gp.gp_camera_capture
         val = f(self._ptr, GP_CAPTURE_IMAGE, PTR(path), context)
         check(val)
@@ -344,6 +343,7 @@ class Camera(object):
         f = gp.gp_camera_wait_for_event
         val = check(f(self._ptr, timeout, PTR(t), PTR(data), context))
         return val
+
 
 class CameraList(object):
     def __init__(self, autodetect=False):
