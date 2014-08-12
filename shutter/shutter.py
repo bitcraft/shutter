@@ -185,6 +185,14 @@ class PortInfoStruct(ctypes.Structure):
         ('path', (ctypes.c_char * 64)),
         ('library_filename', (ctypes.c_char * 1024))
     ]
+    
+class PortInfoStruct(ctypes.Structure):
+    _fields_ = [
+        ('type', ctypes.c_int),  # enum is 32 bits on 32 and 64 bit Linux
+        ('name', (ctypes.c_char)),
+        ('path', (ctypes.c_char)),
+        ('library_filename', (ctypes.c_char))
+    ]
 
 
 class Camera(object):
@@ -193,9 +201,27 @@ class Camera(object):
     The abilities of this type of camera are stored in a CameraAbility object.
     This is a thin ctypes wrapper about libgphoto2 Camera, with a few tweaks.
     """
-    def __init__(self):
+    def __init__(self, regex=None):            
         self._ptr = ctypes.c_void_p()
         check(gp.gp_camera_new(PTR(self._ptr)))
+        if regex:
+            cl = CameraList(autodetect=True)
+            for name, path in cl.as_list():
+                m = regex.search(name.lower())
+                if m:
+                    abl = CameraAbilities()
+                    al = CameraAbilitiesList()
+                    # get the port
+                    pi = PortInfoList()
+                    index = pi.lookup_path(path)
+                    port = pi.get_info(index)
+                    # get the model
+                    model = al.lookup_model(name)
+                    al.get_abilities(model, abl)
+                    # set our attributes
+                    self.abilities = abl
+                    self.port_info = port
+
         val = gp.gp_camera_init(self._ptr, context)
         if val == -60:
             raise ShutterError(val, "cannot init camera")
@@ -256,11 +282,13 @@ class Camera(object):
 
     @property
     def port_info(self):
-        raise NotImplementedError
+        pi = PortInfo()
+        check(gp.gp_camera_get_port_info(self._ptr, PTR(pi.pointer)))
+        return pi
 
     @port_info.setter
     def port_info(self, info):
-        check(gp.gp_camera_set_port_info(self._ptr, info))
+        check(gp.gp_camera_set_port_info(self._ptr, info.pointer))
 
     def capture_image(self, destpath=None):
         """ Capture an image and store it to the camera.
@@ -349,42 +377,8 @@ class CameraList(object):
     def __init__(self, autodetect=False):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_list_new(PTR(self._ptr)))
-
         if autodetect:
-            if hasattr(gp, 'gp_camera_autodetect'):
-                gp.gp_camera_autodetect(self._ptr, context)
-            else:
-                # this is for stable versions of gphoto <= 2.4.10.1
-                xlist = CameraList()
-                il = PortInfoList()
-                il.count()
-                al = CameraAbilitiesList()
-                al.detect(il, xlist)
-
-                # with libgphoto 2.4.8, sometimes one attached camera returns
-                # one path "usb:" and sometimes two paths "usb:"
-                # and "usb:xxx,yyy"
-                good_list = []
-                bad_list = []
-                for i in xrange(xlist.count()):
-                    model = xlist.get_name(i)
-                    path = xlist.get_value(i)
-                    #print model, path
-                    if re.match(r'usb:\d{3},\d{3}', path):
-                        good_list.append((model, path))
-                    elif path == 'usb:':
-                        bad_list.append((model, path))
-                if len(good_list):
-                    for model, path in good_list:
-                        self.append(model, path)
-
-                elif len(bad_list) == 1:
-                    model, path = bad_list[0]
-                    self.append(model, path)
-
-                del al
-                del il
-                del xlist
+            gp.gp_camera_autodetect(self._ptr, context)
 
     def __del__(self):
         check(gp.gp_list_unref(self._ptr))
@@ -518,6 +512,20 @@ class CameraAbilities(object):
     id = property(lambda self: self._ptr.id, None)
 
 
+class PortInfo(object):
+    def __init__(self):
+        self._ptr = PortInfoStruct()
+
+    @property
+    def pointer(self):
+        return self._ptr
+
+    type = property(lambda self: self._ptr.type, None)
+    name = property(lambda self: self._ptr.name, None)
+    path = property(lambda self: self._ptr.path, None)
+    library_filename = property(lambda self: self._ptr.library_filename, None)
+
+
 class CameraAbilitiesList(object):
     _static_l = None
 
@@ -529,6 +537,10 @@ class CameraAbilitiesList(object):
                                             context))
         self._l = CameraAbilitiesList._static_l
 
+    @property
+    def pointer(self):
+        return self._l
+
     def detect(self, il, l):
         f = gp.gp_abilities_list_detect
         check(f(self._l, il.pointer, l.pointer, context))
@@ -539,11 +551,15 @@ class CameraAbilitiesList(object):
 
     def get_abilities(self, model_index, ab):
         f = gp.gp_abilities_list_get_abilities
-        check(f(self._l, model_index, PTR(ab.pointer)))
+        return check(f(self._l, model_index, PTR(ab.pointer)))
 
 
 class PortInfoList(object):
     _static_l = None
+
+    @property
+    def pointer(self):
+        return self._l
 
     def __init__(self):
         if PortInfoList._static_l is None:
@@ -563,6 +579,13 @@ class PortInfoList(object):
         return index
 
     def get_info(self, path_index):
-        info = PortInfoStruct()
-        check(gp.gp_port_info_list_get_info(self._l, path_index, PTR(info)))
+        info = PortInfo()
+        check(gp.gp_port_info_list_get_info(self._l, path_index, PTR(info.pointer)))
         return info
+
+
+if __name__ == '__main__':
+    import shutter
+    import re
+    c = shutter.Camera(re.compile('canon'))
+    c.capture_image()
