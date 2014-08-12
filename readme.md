@@ -7,27 +7,36 @@ simple way to capture images from a camera.
 Use libgphoto2 to control a tethered camera.
 Fork of defunct project 'piggyphoto' by Alex Dumitrache
 
-i've cleaned it up quiet a bit, and added patches that were left in pull
-requests, but much is still untested
+I've cleaned it up quiet a bit, and added patches that were left in pull
+requests, but much is still untested.
 
-currently supported on linux and python 2.7
+Currently supported on linux and python 2.7
 
 
 Use
 ---
 
+    # use the first camera detected on system
     import shutter
     camera = shutter.Camera()
+
+    # capture and save an image
     camera.capture("file.jpg")
 
+    # keep the image data
     data = camera.capture()
     data.save("file.jpg")
+
+    # use regular expressions to search for a model
+    import re
+    camera = shutter.Camera(re.compile('canon'))
 
 
 Supports
 --------
 - Capturing images, previews
-- Probably more, but totally untested
+- Gracefully handle multiple cameras (regex search)
+- Probably more, but untested
 
 
 Goals
@@ -35,7 +44,6 @@ Goals
 - python 3 support
 - unit tests, someday
 - remove all the cruft!
-- more 'pythonic' interface
 
 
 Supported Cameras
