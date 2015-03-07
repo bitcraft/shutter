@@ -21,10 +21,10 @@ Use
     camera = shutter.Camera()
 
     # capture and save an image
-    camera.capture("file.jpg")
+    camera.capture_image("file.jpg")
 
     # keep the image data
-    data = camera.capture()
+    data = camera.capture_image()
     data.save("file.jpg")
 
     # use regular expressions to search for a model
