@@ -10,7 +10,7 @@ Fork of defunct project 'piggyphoto' by Alex Dumitrache
 I've cleaned it up quiet a bit, and added patches that were left in pull
 requests, but much is still untested.
 
-Currently supported on linux and python 2.7
+Currently supported on linux and python 2.7 - 3.4
 
 
 Use
@@ -41,7 +41,6 @@ Supports
 
 Goals
 -----
-- python 3 support
 - unit tests, someday
 - remove all the cruft!
 

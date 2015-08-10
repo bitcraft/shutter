@@ -5,7 +5,7 @@ from setuptools import setup
 
 
 setup(name='shutter',
-      version='0.0.7',
+      version='0.0.8',
       description='ctypes interface for libgphoto2',
       author='bitcraft',
       author_email='leif.theden@gmail.com',
@@ -20,5 +20,6 @@ setup(name='shutter',
           'License :: OSI Approved :: GNU Lesser General Public License v3 (GPLv3)',
           'Topic :: Multimedia :: Graphics :: Capture :: Digital Camera',
           'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3.4',
       ],
 )

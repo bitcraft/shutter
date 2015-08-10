@@ -294,7 +294,7 @@ class Camera(object):
         """ Capture an image and store it to the camera.
 
         Kwargs:
-            path (str): If specified, file will be saved here
+            path (str): If specified, file will be saved here, else returned data
 
         Returns:
             path (str): where the file was saved, either on camera or host
@@ -303,9 +303,7 @@ class Camera(object):
             ShutterError
 
         If destpath is passed, then the image will be saved on the host.
-        If saved the the camera (destpath not passed), then the path returned
-        from this function will be relative to the camera's internal memory or
-        another storage device in the camera (SD card, etc.)
+        Otherwise, the image data will be returned directly.
         """
         path = CameraFilePathStruct()
         f = gp.gp_camera_capture
@@ -313,13 +311,14 @@ class Camera(object):
         check(val)
 
         if destpath:
-            self.download_file(path.folder, path.name, destpath)
+            self.download_and_save(path.folder, path.name, destpath)
             return destpath
         else:
-            return os.path.join(path.folder, path.name)
+            cfile = self.download(path.folder, path.name)
+            return cfile.get_data()
 
     def capture_preview(self, destpath=None):
-        """ Captures a preview image that won't be stored on the camera
+        """ Captures preview image and return the data (or save it)
 
         Kwargs:
             path (str): If specified, file will be saved here
@@ -342,12 +341,22 @@ class Camera(object):
 
         return cfile
 
-    def download_file(self, srcfolder, srcfilename, destpath):
+    def download_and_save(self, srcfolder, srcfilename, destpath):
         """ Download a file from the camera's filesystem.
+
+        :return: None
         """
-        cfile = CameraFile(self._ptr, srcfolder, srcfilename)
+        cfile = self.download(srcfolder, srcfilename)
         cfile.save(destpath)
         check(gp.gp_file_unref(cfile.pointer))
+
+    def download(self, srcfolder, srcfilename):
+        """ Download a file from the camera and return the image data
+
+        :return: cfile
+        """
+        cfile = CameraFile(self._ptr, srcfolder, srcfilename)
+        return cfile
 
     def list_folders(self, path="/"):
         """ List folders in path.
