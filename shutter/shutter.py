@@ -338,8 +338,9 @@ class Camera(object):
 
         if destpath:
             cfile.save(destpath)
-
-        return cfile
+            return destpath
+        else:
+            return cfile.get_data()
 
     def download_and_save(self, srcfolder, srcfilename, destpath):
         """ Download a file from the camera's filesystem.
