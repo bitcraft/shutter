@@ -22,23 +22,19 @@ incorporated patches from:
   jacobmarble's fork
 
 """
-import re
 import ctypes
 import ctypes.util
-import os
-import time
 import platform
 
 # python 2/3 interop
 from six.moves import range
 
-
 # This is run if gp_camera_init returns -60 (Could not lock the device)
-unmount_cmd = None
-if platform.system() == 'Darwin':
-    unmount_cmd = 'killall PTPCamera'
-else:
-    unmount_cmd = 'gvfs-mount -s gphoto2'
+# unmount_cmd = None
+# if platform.system() == 'Darwin':
+#     unmount_cmd = 'killall PTPCamera'
+# else:
+#     unmount_cmd = 'gvfs-mount -s gphoto2'
 
 libgphoto2dll = ctypes.util.find_library('gphoto2')
 gp = ctypes.CDLL(libgphoto2dll)
@@ -47,12 +43,12 @@ context = gp.gp_context_new()
 
 PTR = ctypes.pointer
 
-#cdef extern from "gphoto2/gphoto2-port-version.h":
+# cdef extern from "gphoto2/gphoto2-port-version.h":
 #  ctypedef enum GPVersionVerbosity:
 GP_VERSION_SHORT = 0
 GP_VERSION_VERBOSE = 1
 
-#cdef extern from "gphoto2/gphoto2-abilities-list.h":
+# cdef extern from "gphoto2/gphoto2-abilities-list.h":
 #  ctypedef enum CameraDriverStatus:
 GP_DRIVER_STATUS_PRODUCTION = 0
 GP_DRIVER_STATUS_TESTING = 1
@@ -89,7 +85,7 @@ GP_FOLDER_OPERATION_PUT_FILE = 2
 GP_FOLDER_OPERATION_MAKE_DIR = 3
 GP_FOLDER_OPERATION_REMOVE_DIR = 4
 
-#cdef extern from "gphoto2/gphoto2-port-info-list.h":
+# cdef extern from "gphoto2/gphoto2-port-info-list.h":
 #  ctypedef enum GPPortType:
 GP_PORT_NONE = 0
 GP_PORT_SERIAL = 1
@@ -185,7 +181,8 @@ class PortInfoStruct(ctypes.Structure):
         ('path', (ctypes.c_char * 64)),
         ('library_filename', (ctypes.c_char * 1024))
     ]
-    
+
+
 class PortInfoStruct(ctypes.Structure):
     _fields_ = [
         ('type', ctypes.c_int),  # enum is 32 bits on 32 and 64 bit Linux
@@ -201,7 +198,8 @@ class Camera(object):
     The abilities of this type of camera are stored in a CameraAbility object.
     This is a thin ctypes wrapper about libgphoto2 Camera, with a few tweaks.
     """
-    def __init__(self, regex=None):            
+
+    def __init__(self, regex=None):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_camera_new(PTR(self._ptr)))
         if regex:
@@ -449,6 +447,7 @@ class CameraFile(object):
     """
     Abstract data container for camera image files.
     """
+
     def __init__(self, cam=None, srcfolder=None, srcfilename=None):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_file_new(PTR(self._ptr)))
@@ -597,5 +596,6 @@ class PortInfoList(object):
 if __name__ == '__main__':
     import shutter
     import re
+
     c = shutter.Camera(re.compile('canon'))
     c.capture_image()
