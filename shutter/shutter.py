@@ -24,7 +24,6 @@ incorporated patches from:
 """
 import ctypes
 import ctypes.util
-import platform
 
 # python 2/3 interop
 from six.moves import range
@@ -127,7 +126,7 @@ def gp_library_version(verbose=True):
 def check(result):
     if result < 0:
         gp.gp_result_as_string.restype = ctypes.c_char_p
-        message = gp.gp_result_as_string(result)
+        message = str(gp.gp_result_as_string(result), encoding='ascii')
         raise ShutterError(result, message)
     return result
 
@@ -202,6 +201,7 @@ class Camera(object):
     def __init__(self, regex=None):
         self._ptr = ctypes.c_void_p()
         check(gp.gp_camera_new(PTR(self._ptr)))
+
         if regex:
             cl = CameraList(autodetect=True)
             for name, path in cl.as_list():
@@ -209,13 +209,16 @@ class Camera(object):
                 if m:
                     abl = CameraAbilities()
                     al = CameraAbilitiesList()
+
                     # get the port
                     pi = PortInfoList()
                     index = pi.lookup_path(path)
                     port = pi.get_info(index)
+
                     # get the model
                     model = al.lookup_model(name)
                     al.get_abilities(model, abl)
+
                     # set our attributes
                     self.abilities = abl
                     self.port_info = port
@@ -223,6 +226,7 @@ class Camera(object):
         val = gp.gp_camera_init(self._ptr, context)
         if val == -60:
             raise ShutterError(val, "cannot init camera")
+
         check(val)
 
     def __del__(self):
@@ -248,8 +252,9 @@ class Camera(object):
         """
         txt = CameraTextStruct()
         check(gp.gp_camera_get_summary(self._ptr, PTR(txt), context))
+        summary = str(txt.text, encoding='ascii')
         r = dict()
-        for l in txt.text.split('\n'):
+        for l in summary.splitlines():
             try:
                 k, v = l.split(':')
             except ValueError:
@@ -266,27 +271,52 @@ class Camera(object):
         """
         txt = CameraTextStruct()
         check(gp.gp_camera_get_about(self._ptr, PTR(txt), context))
-        return txt.text
+        return str(txt.text, encoding='ascii')
 
     @property
     def abilities(self):
+        """
+
+        :rtype: CameraAbilities
+        """
         ab = CameraAbilities()
         check(gp.gp_camera_get_abilities(self._ptr, PTR(ab.pointer)))
         return ab
 
     @abilities.setter
     def abilities(self, ab):
+        """
+
+        :type ab: CameraAbilities
+        :return:
+        """
         check(gp.gp_camera_set_abilities(self._ptr, ab.pointer))
 
     @property
     def port_info(self):
+        """
+
+        :rtype: PortInfo
+        """
         pi = PortInfo()
         check(gp.gp_camera_get_port_info(self._ptr, PTR(pi.pointer)))
         return pi
 
     @port_info.setter
     def port_info(self, info):
+        """
+
+        :type info: PortInfo
+        """
         check(gp.gp_camera_set_port_info(self._ptr, info.pointer))
+
+    @property
+    def shutter_speed(self, value):
+        pass
+
+    @property
+    def aperture(self, value):
+        pass
 
     def capture_image(self, destpath=None):
         """ Capture an image and store it to the camera.
@@ -302,6 +332,8 @@ class Camera(object):
 
         If destpath is passed, then the image will be saved on the host.
         Otherwise, the image data will be returned directly.
+
+        :rtype: bytes
         """
         path = CameraFilePathStruct()
         f = gp.gp_camera_capture
@@ -309,6 +341,7 @@ class Camera(object):
         check(val)
 
         if destpath:
+            destpath = destpath.encode('ascii')
             self.download_and_save(path.folder, path.name, destpath)
             return destpath
         else:
@@ -329,6 +362,8 @@ class Camera(object):
 
         The preview image format varies in different camera models.  Generally,
         the image will not have the full detail/resolution of the camera.
+
+        :rtype: bytes
         """
         cfile = CameraFile()
         f = gp.gp_camera_capture_preview
@@ -343,8 +378,16 @@ class Camera(object):
     def download_and_save(self, srcfolder, srcfilename, destpath):
         """ Download a file from the camera's filesystem.
 
+        :type srcfolder: str
+        :type srcfilename: str
+        :type destpath: str
+
         :return: None
         """
+        srcfolder = srcfolder.encode('ascii')
+        srcfilename = srcfilename.encode('ascii')
+        destpath = destpath.encode('ascii')
+
         cfile = self.download(srcfolder, srcfilename)
         cfile.save(destpath)
         check(gp.gp_file_unref(cfile.pointer))
@@ -359,18 +402,32 @@ class Camera(object):
 
     def list_folders(self, path="/"):
         """ List folders in path.
+
+        :type path: str
+        :rtype: list
         """
+        if path is None:
+            path = '/'
+
+        path = path.encode('ascii')
         l = CameraList()
         f = gp.gp_camera_folder_list_folders
         check(f(self._ptr, str(path), l.pointer, context))
         return l.as_list()
 
-    def list_files(self, path="/"):
+    def list_files(self, path=None):
         """ List files in path.
+
+        :type path: str
+        :rtype: list
         """
+        if path is None:
+            path = '/'
+
+        path = path.encode('ascii')
         l = CameraList()
         f = gp.gp_camera_folder_list_files
-        check(f(self._ptr, str(path), l.pointer, context))
+        check(f(self._ptr, path, l.pointer, context))
         return l.as_list()
 
     def wait_for_event(self, timeout=1000):
@@ -406,7 +463,15 @@ class CameraList(object):
         check(gp.gp_list_reset(self._ptr))
 
     def append(self, name, value):
-        check(gp.gp_list_append(self._ptr, str(name), str(value)))
+        """
+
+        :type name: str
+        :type value: str
+        :return: None
+        """
+        name = name.encode('ascii')
+        value = value.encode('ascii')
+        check(gp.gp_list_append(self._ptr, name, value))
 
     def sort(self):
         check(gp.gp_list_sort(self._ptr))
@@ -415,25 +480,55 @@ class CameraList(object):
         return check(gp.gp_list_count(self._ptr))
 
     def find_by_name(self, name):
+        """
+
+        :param name: str
+        :rtype: str
+        """
+        name = name.encode('ascii')
         index = ctypes.c_int()
-        check(gp.gp_list_find_by_name(self._ptr, PTR(index), str(name)))
-        return index.value
+        check(gp.gp_list_find_by_name(self._ptr, PTR(index), name))
+        return str(index.value, encoding='ascii')
 
     def get_name(self, index):
+        """
+
+        :param index: int
+        :rtype: str
+        """
         name = ctypes.c_char_p()
-        check(gp.gp_list_get_name(self._ptr, int(index), PTR(name)))
-        return name.value
+        check(gp.gp_list_get_name(self._ptr, index, PTR(name)))
+        return str(name.value, encoding='ascii')
 
     def get_value(self, index):
+        """
+
+        :param index: int
+        :rtype: str
+        """
         value = ctypes.c_char_p()
-        check(gp.gp_list_get_value(self._ptr, int(index), PTR(value)))
-        return value.value
+        check(gp.gp_list_get_value(self._ptr, index, PTR(value)))
+        return str(value.value, encoding='ascii')
 
     def set_name(self, index, name):
-        check(gp.gp_list_set_name(self._ptr, int(index), str(name)))
+        """
+
+        :type index: int
+        :type name: str
+        :return: None
+        """
+        name = name.encode('ascii')
+        check(gp.gp_list_set_name(self._ptr, index, name))
 
     def set_value(self, index, value):
-        check(gp.gp_list_set_value(self._ptr, int(index), str(value)))
+        """
+
+        :type index: int
+        :type name: str
+        :return: None
+        """
+        value = value.encode('ascii')
+        check(gp.gp_list_set_value(self._ptr, index, value))
 
     def __str__(self):
         header = "cameraList object with %d elements:\n" % self.count()
@@ -464,28 +559,47 @@ class CameraFile(object):
         return self._ptr
 
     def get_data(self):
-        """
-        Return a Python string that represents the data
+        """ Return a Python string that represents the image data
+
+        ! will be bytes for python3 !
+
+        :rtype: str / bytes
         """
         data = ctypes.c_char_p()
         size = ctypes.c_ulong()
         check(gp.gp_file_get_data_and_size(self._ptr, PTR(data), PTR(size)))
-        string = ctypes.string_at(data, int(size.value))
-        return string
+        return ctypes.string_at(data, int(size.value))
 
     def save(self, filename=None):
+        """
+
+        :type filename: str
+        :return:
+        """
         if filename is None:
             filename = self.name
+        else:
+            filename = filename.encode('ascii')
         check(gp.gp_file_save(self._ptr, filename))
 
     @property
     def name(self):
+        """
+
+        :rtype: str
+        """
         name = ctypes.c_char_p()
         check(gp.gp_file_get_name(self._ptr, PTR(name)))
-        return name.value
+        return str(name.value, encoding='ascii')
 
     @name.setter
     def name(self, value):
+        """
+
+        :type value: str
+        :return:  None
+        """
+        value = value.encode('ascii')
         check(gp.gp_file_set_name(self._ptr, str(value)))
 
 
@@ -555,6 +669,12 @@ class CameraAbilitiesList(object):
         check(f(self._l, il.pointer, l.pointer, context))
 
     def lookup_model(self, model):
+        """
+
+        :type model: str
+        :return: int
+        """
+        model = model.encode('ascii')
         f = gp.gp_abilities_list_lookup_model
         return check(f(self._l, model))
 
@@ -583,6 +703,12 @@ class PortInfoList(object):
         return c
 
     def lookup_path(self, path):
+        """
+
+        :type path: str
+        :return: int
+        """
+        path = path.encode('ascii')
         index = gp.gp_port_info_list_lookup_path(self._l, path)
         check(index)
         return index
@@ -597,5 +723,8 @@ if __name__ == '__main__':
     import shutter
     import re
 
-    c = shutter.Camera(re.compile('canon'))
+    c = shutter.Camera(re.compile('canon', re.I))
+    print(c.summary)
+    print(c.about)
+    print(c.abilities)
     c.capture_image()
